@@ -69,13 +69,21 @@ En producción (Cursor Apps / Postgres), la plataforma inyecta `DATABASE_URL`. D
 
 ### Webhook Pey (producción)
 
-Cuando la app esté en HTTPS público, pega en portal.mipey.mx:
+Repo: https://github.com/Jesus105/tandas
+
+Cuando la app esté en HTTPS público estable, pega en portal.mipey.mx:
 
 ```text
 https://TU_HOST_PUBLICO/api/webhooks/pey
 ```
 
-(Actualiza `TU_HOST_PUBLICO` con el dominio de deploy.)
+**Temporal (dev + cloudflared):** mientras no haya host de producción, el túnel actual es:
+
+```text
+https://chains-inflation-pop-following.trycloudflare.com/api/webhooks/pey
+```
+
+Tras un deploy en Vercel/Cursor Apps, sustituye por el dominio definitivo y vuelve a guardar el webhook en el portal.
 
 ## Demo en 3 minutos
 
