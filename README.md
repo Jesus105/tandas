@@ -36,6 +36,13 @@ Nunca uses `NEXT_PUBLIC_` para estos secretos.
 4. Copia el **webhook secret** a `PEY_WEBHOOK_SECRET`.
 5. CLABE de prueba Pey: `012180015826225713` (útila para demos / seed).
 
+## Auth (organizador)
+
+- Registro / login con email + contraseña (cookie `tandas_session` httpOnly).
+- Cada tanda pertenece al organizador autenticado (`organizer_id`).
+- `/pagar/[chargeId]` y `POST /api/webhooks/pey` son públicos.
+- La demo (“Probar tanda demo”) vive dentro de `/app` (requiere sesión).
+
 ## Cómo correr
 
 ```bash
@@ -44,13 +51,31 @@ npm install
 env -u DATABASE_URL npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000).
+Abre [http://localhost:3000](http://localhost:3000) → **Crear cuenta** → **Mis tandas**.
 
 Build:
 
 ```bash
 npm run build
 ```
+
+Variables adicionales:
+
+| Variable | Uso |
+|----------|-----|
+| `SESSION_SECRET` | Secreto local (opcional con sesiones en DB; genéralo en prod) |
+
+En producción (Cursor Apps / Postgres), la plataforma inyecta `DATABASE_URL`. Declara `PEY_API_KEY` y `PEY_WEBHOOK_SECRET` como secretos de la app.
+
+### Webhook Pey (producción)
+
+Cuando la app esté en HTTPS público, pega en portal.mipey.mx:
+
+```text
+https://TU_HOST_PUBLICO/api/webhooks/pey
+```
+
+(Actualiza `TU_HOST_PUBLICO` con el dominio de deploy.)
 
 ## Demo en 3 minutos
 

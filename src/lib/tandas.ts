@@ -13,13 +13,21 @@ export async function createTanda(input: {
   amountCents: number;
   frequency: Frequency;
   startDate: string;
+  organizerId: string;
 }): Promise<Tanda> {
   const tandaId = id("tanda");
   const rows = await sql<Tanda>(
-    `INSERT INTO tandas (id, name, amount_cents, frequency, start_date, status)
-     VALUES ($1, $2, $3, $4, $5, 'draft')
+    `INSERT INTO tandas (id, name, amount_cents, frequency, start_date, status, organizer_id)
+     VALUES ($1, $2, $3, $4, $5, 'draft', $6)
      RETURNING *`,
-    [tandaId, input.name, input.amountCents, input.frequency, input.startDate],
+    [
+      tandaId,
+      input.name,
+      input.amountCents,
+      input.frequency,
+      input.startDate,
+      input.organizerId,
+    ],
   );
   return rows[0];
 }
@@ -27,6 +35,26 @@ export async function createTanda(input: {
 export async function getTanda(tandaId: string): Promise<Tanda | null> {
   const rows = await sql<Tanda>(`SELECT * FROM tandas WHERE id = $1`, [tandaId]);
   return rows[0] ?? null;
+}
+
+export async function listTandasForOrganizer(
+  organizerId: string,
+): Promise<Tanda[]> {
+  return sql<Tanda>(
+    `SELECT * FROM tandas WHERE organizer_id = $1 ORDER BY created_at DESC`,
+    [organizerId],
+  );
+}
+
+export async function assertTandaOwner(
+  tandaId: string,
+  organizerId: string,
+): Promise<Tanda> {
+  const tanda = await getTanda(tandaId);
+  if (!tanda || tanda.organizer_id !== organizerId) {
+    throw new Error("FORBIDDEN");
+  }
+  return tanda;
 }
 
 export async function listMembers(tandaId: string): Promise<Member[]> {
@@ -343,7 +371,7 @@ export const SEED_MEMBERS = [
   { name: "David Perez", phone: "5511110005", clabe: "127180016558860385" },
 ] as const;
 
-export async function seedDemoTanda(): Promise<Tanda> {
+export async function seedDemoTanda(organizerId: string): Promise<Tanda> {
   // Display amount for the demo story; live Pey charges always send $0.01 (see AGENTS.md)
   const amountCents = 50000; // $500 MXN shown in UI
 
@@ -352,6 +380,7 @@ export async function seedDemoTanda(): Promise<Tanda> {
     amountCents,
     frequency: "semanal",
     startDate: new Date().toISOString().slice(0, 10),
+    organizerId,
   });
 
   for (let i = 0; i < SEED_MEMBERS.length; i++) {

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { isPeyLive, PEY_LIVE_CHARGE_AMOUNT_MXN } from "@/lib/pey";
 import {
   getOpenRound,
@@ -15,9 +16,12 @@ import { ChargeRow } from "./ChargeRow";
 type Props = { params: Promise<{ id: string }> };
 
 export default async function TandaDashboardPage({ params }: Props) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const { id } = await params;
   const tanda = await getTanda(id);
-  if (!tanda) notFound();
+  if (!tanda || tanda.organizer_id !== user.id) notFound();
 
   const members = await listMembers(id);
   const openRound = await getOpenRound(id);
@@ -33,8 +37,8 @@ export default async function TandaDashboardPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <Link href="/" className="text-sm text-forest-600 hover:text-forest-900">
-        ← Inicio
+      <Link href="/app" className="text-sm text-forest-600 hover:text-forest-900">
+        ← Mis tandas
       </Link>
 
       <div className="mt-6 flex flex-wrap items-start justify-between gap-4">

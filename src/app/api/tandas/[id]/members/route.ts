@@ -1,17 +1,45 @@
 import { NextResponse } from "next/server";
-import { addMember, listMembers, reorderMembers, shuffleTurns } from "@/lib/tandas";
+import { requireUser, unauthorizedResponse } from "@/lib/auth";
+import {
+  addMember,
+  assertTandaOwner,
+  listMembers,
+  reorderMembers,
+  shuffleTurns,
+} from "@/lib/tandas";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+async function guard(id: string) {
+  const user = await requireUser();
+  await assertTandaOwner(id, user.id);
+  return user;
+}
+
 export async function GET(_req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
-  const members = await listMembers(id);
-  return NextResponse.json(members);
+  try {
+    const { id } = await ctx.params;
+    await guard(id);
+    const members = await listMembers(id);
+    return NextResponse.json(members);
+  } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return unauthorizedResponse();
+    }
+    if (e instanceof Error && e.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Error" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    await guard(id);
     const body = await req.json();
     const name = String(body.name ?? "").trim();
     const phone = String(body.phone ?? "").replace(/\D/g, "");
@@ -32,6 +60,12 @@ export async function POST(req: Request, ctx: Ctx) {
     });
     return NextResponse.json(member);
   } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return unauthorizedResponse();
+    }
+    if (e instanceof Error && e.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Error" },
       { status: 500 },
@@ -42,6 +76,7 @@ export async function POST(req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    await guard(id);
     const body = await req.json();
     if (body.action === "shuffle") {
       const members = await shuffleTurns(id);
@@ -53,6 +88,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
   } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return unauthorizedResponse();
+    }
+    if (e instanceof Error && e.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Error" },
       { status: 500 },

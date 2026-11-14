@@ -27,6 +27,15 @@ export default function MiembrosPage() {
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/tandas/${id}/members`);
+    if (res.status === 401) {
+      window.location.assign("/login");
+      return;
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudieron cargar integrantes");
+      return;
+    }
     setMembers(await res.json());
   }, [id]);
 

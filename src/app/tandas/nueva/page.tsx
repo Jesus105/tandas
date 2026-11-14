@@ -1,19 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function NuevaTandaPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
-  const [amount, setAmount] = useState("100");
+  const [amount, setAmount] = useState("500");
   const [frequency, setFrequency] = useState("semanal");
   const [startDate, setStartDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => {
+        if (!r.ok) window.location.assign("/login");
+      })
+      .catch(() => window.location.assign("/login"));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,8 +37,12 @@ export default function NuevaTandaPage() {
         }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "No se pudo crear");
-      router.push(`/tandas/${data.id}/miembros`);
+      window.location.assign(`/tandas/${data.id}/miembros`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
       setLoading(false);
@@ -41,8 +51,8 @@ export default function NuevaTandaPage() {
 
   return (
     <main className="mx-auto max-w-lg px-6 py-12">
-      <Link href="/" className="text-sm text-forest-600 hover:text-forest-900">
-        ← Inicio
+      <Link href="/app" className="text-sm text-forest-600 hover:text-forest-900">
+        ← Mis tandas
       </Link>
       <h1 className="mt-6 font-display text-3xl text-forest-900">
         Nueva tanda

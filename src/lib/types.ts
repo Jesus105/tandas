@@ -8,6 +8,7 @@ export type Tanda = {
   start_date: string;
   status: "draft" | "ready" | "active" | "completed";
   current_round: number;
+  organizer_id: string | null;
   created_at: string;
 };
 

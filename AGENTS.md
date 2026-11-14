@@ -33,4 +33,5 @@ This is enforced in `src/lib/pey.ts` via:
 
 - Seed members (test Persona ACTIVE CLABEs): `SEED_MEMBERS` in `src/lib/tandas.ts`
 - Portal: https://portal.mipey.mx
-- Env: `PEY_API_KEY`, `PEY_WEBHOOK_SECRET` (never `NEXT_PUBLIC_`)
+- Env: `PEY_API_KEY`, `PEY_WEBHOOK_SECRET`, `SESSION_SECRET` (never `NEXT_PUBLIC_`)
+- Auth: organizers own tandas; `/pagar/*` and `/api/webhooks/pey` stay public

@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { SeedButton } from "@/components/SeedButton";
+import { getCurrentUser } from "@/lib/auth";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const user = await getCurrentUser();
+
   return (
     <main className="relative overflow-hidden">
       <div
@@ -13,7 +15,33 @@ export default function HomePage() {
       />
 
       <div className="relative mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
-        <p className="animate-fade-up text-sm font-medium tracking-wide text-gold-600 uppercase">
+        <div className="flex justify-end gap-3 text-sm">
+          {user ? (
+            <Link
+              href="/app"
+              className="font-medium text-forest-800 underline-offset-2 hover:underline"
+            >
+              Ir a mis tandas
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-forest-700 underline-offset-2 hover:underline"
+              >
+                Iniciar sesión
+              </Link>
+              <Link
+                href="/registro"
+                className="font-medium text-forest-800 underline-offset-2 hover:underline"
+              >
+                Crear cuenta
+              </Link>
+            </>
+          )}
+        </div>
+
+        <p className="animate-fade-up mt-8 text-sm font-medium tracking-wide text-gold-600 uppercase">
           Hackatón México 2026 · Pey CoDi
         </p>
         <h1 className="animate-fade-up-delay mt-4 font-display text-5xl sm:text-6xl font-semibold tracking-tight text-forest-900 leading-[1.05]">
@@ -26,13 +54,29 @@ export default function HomePage() {
         </p>
 
         <div className="animate-fade-up-delay-2 mt-10 flex flex-wrap items-center gap-3">
-          <Link
-            href="/tandas/nueva"
-            className="inline-flex items-center justify-center rounded-lg bg-forest-800 px-6 py-3 text-base font-medium text-cream-50 shadow-sm hover:bg-forest-900 transition"
-          >
-            Crear tanda
-          </Link>
-          <SeedButton />
+          {user ? (
+            <Link
+              href="/app"
+              className="inline-flex items-center justify-center rounded-lg bg-forest-800 px-6 py-3 text-base font-medium text-cream-50 shadow-sm hover:bg-forest-900 transition"
+            >
+              Mis tandas
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/registro"
+                className="inline-flex items-center justify-center rounded-lg bg-forest-800 px-6 py-3 text-base font-medium text-cream-50 shadow-sm hover:bg-forest-900 transition"
+              >
+                Empezar gratis
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-lg border border-forest-600/30 bg-white/70 px-5 py-2.5 text-sm font-medium text-forest-800 hover:bg-white transition"
+              >
+                Ya tengo cuenta
+              </Link>
+            </>
+          )}
         </div>
 
         <section className="mt-20 grid gap-8 sm:grid-cols-3">
@@ -51,7 +95,9 @@ export default function HomePage() {
             },
           ].map((item) => (
             <div key={item.title}>
-              <h2 className="font-display text-xl text-forest-900">{item.title}</h2>
+              <h2 className="font-display text-xl text-forest-900">
+                {item.title}
+              </h2>
               <p className="mt-2 text-sm text-forest-600 leading-relaxed">
                 {item.body}
               </p>

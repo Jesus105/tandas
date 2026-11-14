@@ -1,9 +1,27 @@
 import { NextResponse } from "next/server";
-import { createTanda } from "@/lib/tandas";
+import { requireUser, unauthorizedResponse } from "@/lib/auth";
+import { createTanda, listTandasForOrganizer } from "@/lib/tandas";
 import type { Frequency } from "@/lib/types";
+
+export async function GET() {
+  try {
+    const user = await requireUser();
+    const tandas = await listTandasForOrganizer(user.id);
+    return NextResponse.json({ tandas });
+  } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return unauthorizedResponse();
+    }
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Error" },
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(req: Request) {
   try {
+    const user = await requireUser();
     const body = await req.json();
     const name = String(body.name ?? "").trim();
     const frequency = String(body.frequency ?? "") as Frequency;
@@ -24,9 +42,13 @@ export async function POST(req: Request) {
       amountCents,
       frequency,
       startDate,
+      organizerId: user.id,
     });
     return NextResponse.json(tanda);
   } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return unauthorizedResponse();
+    }
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Error" },
       { status: 500 },
