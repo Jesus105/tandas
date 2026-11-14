@@ -7,6 +7,10 @@ MVP para el **Hackatón México 2026**. El organizador configura la tanda una ve
 - Node.js 20+
 - Cuenta en [portal.mipey.mx](https://portal.mipey.mx) (para cobros reales)
 
+## Monto live = siempre $0.01
+
+Con `PEY_API_KEY` activo, **todo cobro CoDi real** (`POST /codi/qr`, `/codi/pn`) envía `amount: 0.01` MXN — hardcode en `src/lib/pey.ts` (`PEY_LIVE_CHARGE_AMOUNT_MXN`). Las CLABEs del seed son de prueba. La UI puede mostrar otro monto de historia (ej. $500). Detalle y reglas para agentes: [`AGENTS.md`](./AGENTS.md).
+
 ## Variables de entorno
 
 Copia `.env.example` a `.env` (ya existe `.env` vacío en el repo local):

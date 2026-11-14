@@ -8,7 +8,7 @@ export async function POST() {
       tanda,
       peyLive: isPeyLive(),
       message: isPeyLive()
-        ? "Tanda demo creada con CLABE de prueba Pey y monto $0.01"
+        ? "Tanda demo con 5 CLABEs de prueba ACTIVE. UI muestra $500; CoDi real envía $0.01"
         : "Tanda demo creada en modo demo (sin PEY_API_KEY)",
     });
   } catch (e) {

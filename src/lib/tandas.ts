@@ -1,6 +1,11 @@
 import { sql } from "./db";
 import { id, numRef } from "./ids";
-import { createBankAccount, createCodiQr, isPeyLive } from "./pey";
+import {
+  createBankAccount,
+  createCodiQr,
+  getBankAccount,
+  isPeyLive,
+} from "./pey";
 import type { Charge, Frequency, Member, Round, Tanda } from "./types";
 
 export async function createTanda(input: {
@@ -40,11 +45,19 @@ export async function addMember(input: {
 }): Promise<Member> {
   const memberId = id("mem");
   const alias = `tanda-${input.tandaId.slice(-6)}-${input.name.slice(0, 20)}`;
-  const ba = await createBankAccount({
+  let ba = await createBankAccount({
     alias,
     name: input.name,
     clabe: input.clabe,
   });
+  // Refresh status from Pey so ACTIVE accounts are stored correctly
+  if (ba.id && isPeyLive()) {
+    try {
+      ba = await getBankAccount(ba.id);
+    } catch {
+      // keep create/resolve result
+    }
+  }
 
   const rows = await sql<Member>(
     `INSERT INTO members
@@ -135,15 +148,37 @@ export async function openRound(tandaId: string): Promise<{
   const tanda = await getTanda(tandaId);
   if (!tanda) throw new Error("Tanda no encontrada");
 
+  // Drop empty failed open rounds (e.g. Pey QR error mid-generation)
   const existing = await getOpenRound(tandaId);
-  if (existing) throw new Error("Ya hay una ronda abierta");
+  if (existing) {
+    const existingCharges = await listCharges(existing.id);
+    if (existingCharges.length === 0) {
+      await sql(`DELETE FROM rounds WHERE id = $1`, [existing.id]);
+      await sql(
+        `UPDATE tandas SET current_round = GREATEST(current_round - 1, 0) WHERE id = $1`,
+        [tandaId],
+      );
+    } else {
+      throw new Error("Ya hay una ronda abierta");
+    }
+  }
+  // Also clear canceled shells that would block the unique (tanda_id, round_number)
+  await sql(
+    `DELETE FROM rounds
+     WHERE tanda_id = $1 AND status = 'canceled'
+       AND NOT EXISTS (SELECT 1 FROM charges c WHERE c.round_id = rounds.id)`,
+    [tandaId],
+  );
 
   const members = await listMembers(tandaId);
   if (members.length < 2) {
     throw new Error("Se necesitan al menos 2 integrantes");
   }
 
-  const nextNumber = tanda.current_round + 1;
+  const fresh = await getTanda(tandaId);
+  if (!fresh) throw new Error("Tanda no encontrada");
+
+  const nextNumber = fresh.current_round + 1;
   if (nextNumber > members.length) {
     throw new Error("Todas las rondas ya se completaron");
   }
@@ -159,6 +194,56 @@ export async function openRound(tandaId: string): Promise<{
   }
 
   const roundId = id("round");
+  const payers = members.filter((m) => m.id !== beneficiary.id);
+  const charges: Charge[] = [];
+  const expirationSeconds = 7 * 24 * 60 * 60; // 7 days
+  // Display amount for the tanda story; live Pey hardcodes 0.01 inside createCodiQr
+  const amountPesos = fresh.amount_cents / 100;
+
+  try {
+    for (const payer of payers) {
+      const chargeId = id("chg");
+      const ref = numRef();
+      const concept =
+        `${fresh.name} · Ronda ${nextNumber} · ${payer.name}`.slice(0, 40);
+      const metadata = {
+        tandaId,
+        roundId,
+        chargeId,
+        payerMemberId: payer.id,
+        beneficiaryMemberId: beneficiary.id,
+      };
+
+      // Destino = CLABE/cuenta del BENEFICIARIO — no pool de plataforma
+      const qr = await createCodiQr({
+        amount: amountPesos,
+        concept,
+        expirationSeconds,
+        numRef: ref,
+        bankAccountId: beneficiary.pey_bank_account_id!,
+        metadata,
+      });
+
+      charges.push({
+        id: chargeId,
+        round_id: roundId,
+        payer_member_id: payer.id,
+        amount_cents: fresh.amount_cents,
+        concept,
+        num_ref: ref,
+        pey_qr_id: qr.id,
+        qr_string: qr.qrString,
+        qr_image: qr.qrImage,
+        status: "pending",
+        paid_at: null,
+        metadata,
+        created_at: new Date().toISOString(),
+      } as Charge);
+    }
+  } catch (e) {
+    throw e;
+  }
+
   const roundRows = await sql<Round>(
     `INSERT INTO rounds (id, tanda_id, round_number, beneficiary_member_id, status)
      VALUES ($1, $2, $3, $4, 'open')
@@ -172,36 +257,8 @@ export async function openRound(tandaId: string): Promise<{
     [nextNumber, tandaId],
   );
 
-  const payers = members.filter((m) => m.id !== beneficiary.id);
-  const charges: Charge[] = [];
-  const expiration = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const amountPesos = tanda.amount_cents / 100;
-
-  for (const payer of payers) {
-    const chargeId = id("chg");
-    const ref = numRef();
-    const concept = `${tanda.name} · Ronda ${nextNumber} · ${payer.name}`.slice(
-      0,
-      40,
-    );
-    const metadata = {
-      tandaId,
-      roundId,
-      chargeId,
-      payerMemberId: payer.id,
-      beneficiaryMemberId: beneficiary.id,
-    };
-
-    // Destino = CLABE/cuenta del BENEFICIARIO — no pool de plataforma
-    const qr = await createCodiQr({
-      amount: amountPesos,
-      concept,
-      expiration,
-      numRef: ref,
-      bankAccountId: beneficiary.pey_bank_account_id!,
-      metadata,
-    });
-
+  const saved: Charge[] = [];
+  for (const c of charges) {
     const rows = await sql<Charge>(
       `INSERT INTO charges
         (id, round_id, payer_member_id, amount_cents, concept, num_ref,
@@ -209,22 +266,22 @@ export async function openRound(tandaId: string): Promise<{
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',$10::jsonb)
        RETURNING *`,
       [
-        chargeId,
+        c.id,
         roundId,
-        payer.id,
-        tanda.amount_cents,
-        concept,
-        ref,
-        qr.id,
-        qr.qrString,
-        qr.qrImage,
-        JSON.stringify(metadata),
+        c.payer_member_id,
+        c.amount_cents,
+        c.concept,
+        c.num_ref,
+        c.pey_qr_id,
+        c.qr_string,
+        c.qr_image,
+        JSON.stringify(c.metadata ?? {}),
       ],
     );
-    charges.push(rows[0]);
+    saved.push(rows[0]);
   }
 
-  return { round, charges, beneficiary };
+  return { round, charges: saved, beneficiary };
 }
 
 export async function markChargePaid(chargeId: string): Promise<Charge | null> {
@@ -277,35 +334,33 @@ export async function markChargePaidByPey(opts: {
   return markChargePaid(charge.id);
 }
 
+/** Cuentas Persona ACTIVE en portal.mipey.mx (CLABEs reales del equipo). */
+export const SEED_MEMBERS = [
+  { name: "Ramón Orraca", phone: "5511110001", clabe: "012180015826225713" },
+  { name: "Santiago Tena", phone: "5511110002", clabe: "012180015913466252" },
+  { name: "Adrian Soto", phone: "5511110003", clabe: "014180606004536217" },
+  { name: "Miriam Nava", phone: "5511110004", clabe: "012180015355682429" },
+  { name: "David Perez", phone: "5511110005", clabe: "127180016558860385" },
+] as const;
+
 export async function seedDemoTanda(): Promise<Tanda> {
-  const live = isPeyLive();
-  // CLABE de prueba Pey (portal.mipey.mx)
-  const testClabe = "012180015826225713";
-  const amountCents = live ? 1 : 10000; // $0.01 live / $100 demo display
+  // Display amount for the demo story; live Pey charges always send $0.01 (see AGENTS.md)
+  const amountCents = 50000; // $500 MXN shown in UI
 
   const tanda = await createTanda({
-    name: "Tanda demo familia",
+    name: "Tanda demo Pey",
     amountCents,
     frequency: "semanal",
     startDate: new Date().toISOString().slice(0, 10),
   });
 
-  const people = [
-    { name: "Ana López", phone: "5512345678" },
-    { name: "Bruno Méndez", phone: "5587654321" },
-    { name: "Carla Ruiz", phone: "5522334455" },
-    { name: "Diego Soto", phone: "5599887766" },
-  ];
-
-  for (let i = 0; i < people.length; i++) {
-    const clabe = live
-      ? testClabe
-      : `01218001582622${String(5713 + i).padStart(4, "0")}`.slice(0, 18);
+  for (let i = 0; i < SEED_MEMBERS.length; i++) {
+    const person = SEED_MEMBERS[i];
     await addMember({
       tandaId: tanda.id,
-      name: people[i].name,
-      phone: people[i].phone,
-      clabe: live ? testClabe : clabe.padEnd(18, "0").slice(0, 18),
+      name: person.name,
+      phone: person.phone,
+      clabe: person.clabe,
       turnOrder: i + 1,
     });
   }

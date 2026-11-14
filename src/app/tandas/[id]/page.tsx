@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { isPeyLive, PEY_LIVE_CHARGE_AMOUNT_MXN } from "@/lib/pey";
 import {
   getOpenRound,
   getTanda,
@@ -28,6 +29,7 @@ export default async function TandaDashboardPage({ params }: Props) {
 
   const paid = charges.filter((c) => c.status === "paid").length;
   const total = charges.length;
+  const live = isPeyLive();
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -42,6 +44,13 @@ export default async function TandaDashboardPage({ params }: Props) {
             {formatMxn(tanda.amount_cents)} · {frequencyLabel(tanda.frequency)} ·{" "}
             inicia {tanda.start_date}
           </p>
+          {live && (
+            <p className="mt-2 text-xs text-gold-600">
+              Pey vivo: cada CoDi cobra{" "}
+              {formatMxn(Math.round(PEY_LIVE_CHARGE_AMOUNT_MXN * 100))} (prueba),
+              no el monto de historia.
+            </p>
+          )}
         </div>
         <Link
           href={`/tandas/${id}/miembros`}

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
-import { isPeyLive } from "@/lib/pey";
+import { isPeyLive, PEY_LIVE_CHARGE_AMOUNT_MXN } from "@/lib/pey";
 import { getCharge } from "@/lib/tandas";
 import { formatMxn } from "@/lib/types";
 import { SimulatePayButton } from "./SimulatePayButton";
@@ -48,8 +48,18 @@ export default async function PagarPage({ params }: Props) {
         Cobro CoDi · {tanda?.name}
       </p>
       <h1 className="mt-2 font-display text-3xl text-forest-900">
-        {formatMxn(charge.amount_cents)}
+        {live
+          ? formatMxn(Math.round(PEY_LIVE_CHARGE_AMOUNT_MXN * 100))
+          : formatMxn(charge.amount_cents)}
       </h1>
+      {live && (
+        <p className="mt-2 rounded-lg border border-gold-500/40 bg-gold-500/15 px-3 py-2 text-sm text-forest-900">
+          Cobro CoDi real de prueba:{" "}
+          <strong>{formatMxn(Math.round(PEY_LIVE_CHARGE_AMOUNT_MXN * 100))}</strong>{" "}
+          (hardcode MVP). Monto de la tanda en historia:{" "}
+          {formatMxn(charge.amount_cents)}.
+        </p>
+      )}
       <p className="mt-2 text-forest-600 text-sm leading-relaxed">
         {payer?.name ?? "Participante"}, paga a{" "}
         <strong className="text-forest-900">{beneficiary?.name}</strong> (ronda{" "}
