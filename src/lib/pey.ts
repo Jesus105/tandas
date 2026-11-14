@@ -331,10 +331,16 @@ export type PeyWebhookEvent = {
   };
 };
 
+export class PeyWebhookConfigError extends Error {
+  constructor() {
+    super("PEY_WEBHOOK_SECRET no configurado");
+    this.name = "PeyWebhookConfigError";
+  }
+}
+
 /**
- * Verifica la firma del webhook con PEY_WEBHOOK_SECRET.
- * Sin secret: NO rompe la app — parsea el JSON sin verificar (dev / pre-portal).
- * Con secret: falla solo ese request si la firma es inválida.
+ * Verifica la firma Standard Webhooks. Sin PEY_WEBHOOK_SECRET no parsea
+ * ni acepta el body: el caller debe responder 503 y no tocar cobros.
  */
 export async function verifyPeyWebhook(
   rawBody: string,
@@ -342,14 +348,7 @@ export async function verifyPeyWebhook(
 ): Promise<PeyWebhookEvent> {
   const secret = process.env.PEY_WEBHOOK_SECRET?.trim();
   if (!secret) {
-    console.warn(
-      "[pey webhook] PEY_WEBHOOK_SECRET vacío — aceptando evento sin verificar firma",
-    );
-    try {
-      return JSON.parse(rawBody || "{}") as PeyWebhookEvent;
-    } catch {
-      return { type: "unparseable", data: {} };
-    }
+    throw new PeyWebhookConfigError();
   }
 
   const wh = new Webhook(secret);

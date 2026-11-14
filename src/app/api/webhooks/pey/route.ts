@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { verifyPeyWebhook } from "@/lib/pey";
+import {
+  PEY_LIVE_CHARGE_AMOUNT_MXN,
+  PeyWebhookConfigError,
+  verifyPeyWebhook,
+} from "@/lib/pey";
 import { markChargePaidByPey } from "@/lib/tandas";
+
+function amountMatchesLiveCharge(amount: unknown): boolean {
+  const got = typeof amount === "number" ? amount : Number(amount);
+  if (!Number.isFinite(got)) return false;
+  return Math.round(got * 100) === Math.round(PEY_LIVE_CHARGE_AMOUNT_MXN * 100);
+}
 
 export async function POST(req: Request) {
   const rawBody = await req.text();
@@ -20,6 +30,13 @@ export async function POST(req: Request) {
         (typeof data.metadata?.charge_id === "string"
           ? data.metadata.charge_id
           : undefined);
+      if (!amountMatchesLiveCharge(data.amount)) {
+        return NextResponse.json({
+          ok: true,
+          ignored: "amount_mismatch",
+          matched: false,
+        });
+      }
       const paid = await markChargePaidByPey({
         chargeId,
         peyQrId: data.id,
@@ -50,6 +67,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, ignored: type });
   } catch (e) {
+    if (e instanceof PeyWebhookConfigError) {
+      return NextResponse.json(
+        { error: "Webhook no configurado" },
+        { status: 503 },
+      );
+    }
     console.error("webhook pey error", e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Firma inválida" },

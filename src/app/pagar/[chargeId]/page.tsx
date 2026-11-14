@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { isPeyLive, PEY_LIVE_CHARGE_AMOUNT_MXN } from "@/lib/pey";
 import { getCharge } from "@/lib/tandas";
@@ -31,10 +32,11 @@ export default async function PagarPage({ params }: Props) {
     `SELECT name FROM members WHERE id = $1`,
     [charge.payer_member_id],
   );
-  const tandaRows = await sql<{ name: string }>(
-    `SELECT name FROM tandas WHERE id = $1`,
+  const tandaRows = await sql<{ name: string; organizer_id: string | null }>(
+    `SELECT name, organizer_id FROM tandas WHERE id = $1`,
     [round.tanda_id],
   );
+  const viewer = await getCurrentUser();
 
   const beneficiary = beneficiaryRows[0];
   const payer = payerRows[0];
@@ -112,7 +114,12 @@ export default async function PagarPage({ params }: Props) {
 
       <div className="mt-8 flex flex-col gap-2">
         <CopyLinkButton chargeId={chargeId} />
-        {!paid && !live && <SimulatePayButton chargeId={chargeId} />}
+        {!paid &&
+          !live &&
+          viewer &&
+          tanda?.organizer_id === viewer.id && (
+            <SimulatePayButton chargeId={chargeId} />
+          )}
       </div>
     </main>
   );
