@@ -11,19 +11,40 @@ type GlobalDb = {
 
 const g = globalThis as unknown as GlobalDb;
 
+/** PGlite/pg may return Date objects — React cannot render those. */
+function serializeRow<T>(row: Record<string, unknown>): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value instanceof Date) {
+      out[key] = value.toISOString();
+    } else {
+      out[key] = value;
+    }
+  }
+  return out as T;
+}
+
 export async function sql<T = Record<string, unknown>>(
   text: string,
   params: unknown[] = [],
 ): Promise<T[]> {
   if (databaseUrl !== "") {
     pool ??= new pg.Pool({ connectionString: databaseUrl, max: 5 });
-    return (await pool.query(text, params)).rows as T[];
+    const rows = (await pool.query(text, params)).rows as Record<
+      string,
+      unknown
+    >[];
+    return rows.map((r) => serializeRow<T>(r));
   }
   g.__tandas_pglite ??= startLocal().catch((error: unknown) => {
     g.__tandas_pglite = undefined;
     throw error;
   });
-  return (await (await g.__tandas_pglite).query<T>(text, params)).rows;
+  const rows = (await (await g.__tandas_pglite).query<Record<string, unknown>>(
+    text,
+    params,
+  )).rows;
+  return rows.map((r) => serializeRow<T>(r));
 }
 
 async function startLocal(): Promise<PGlite> {

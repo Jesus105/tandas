@@ -61,3 +61,15 @@ export function frequencyLabel(f: Frequency): string {
     { semanal: "Semanal", quincenal: "Quincenal", mensual: "Mensual" }[f] ?? f
   );
 }
+
+/** Safe for JSX: accepts ISO string or Date-like values from drivers. */
+export function formatDate(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("es-MX", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}

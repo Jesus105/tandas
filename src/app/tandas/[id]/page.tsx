@@ -8,7 +8,7 @@ import {
   listMembers,
   listRounds,
 } from "@/lib/tandas";
-import { formatMxn, frequencyLabel } from "@/lib/types";
+import { formatDate, formatMxn, frequencyLabel } from "@/lib/types";
 import { OpenRoundButton } from "./OpenRoundButton";
 import { ChargeRow } from "./ChargeRow";
 
@@ -42,7 +42,7 @@ export default async function TandaDashboardPage({ params }: Props) {
           <h1 className="font-display text-3xl text-forest-900">{tanda.name}</h1>
           <p className="mt-1 text-sm text-forest-600">
             {formatMxn(tanda.amount_cents)} · {frequencyLabel(tanda.frequency)} ·{" "}
-            inicia {tanda.start_date}
+            inicia {formatDate(tanda.start_date)}
           </p>
           {live && (
             <p className="mt-2 text-xs text-gold-600">
