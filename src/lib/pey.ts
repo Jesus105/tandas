@@ -333,36 +333,45 @@ export type PeyWebhookEvent = {
 
 /**
  * Verifica la firma del webhook con PEY_WEBHOOK_SECRET.
- * Si no hay secret (desarrollo), acepta el body sin verificar.
+ * Sin secret: NO rompe la app — parsea el JSON sin verificar (dev / pre-portal).
+ * Con secret: falla solo ese request si la firma es inválida.
  */
 export async function verifyPeyWebhook(
   rawBody: string,
   headers: Headers,
 ): Promise<PeyWebhookEvent> {
   const secret = process.env.PEY_WEBHOOK_SECRET?.trim();
-  if (secret) {
-    const wh = new Webhook(secret);
-    const hdrs: Record<string, string> = {};
-    headers.forEach((v, k) => {
-      hdrs[k] = v;
-    });
-    const verified = wh.verify(rawBody, {
-      "webhook-id":
-        hdrs["webhook-id"] ?? hdrs["svix-id"] ?? hdrs["Webhook-Id"] ?? "",
-      "webhook-timestamp":
-        hdrs["webhook-timestamp"] ??
-        hdrs["svix-timestamp"] ??
-        hdrs["Webhook-Timestamp"] ??
-        "",
-      "webhook-signature":
-        hdrs["webhook-signature"] ??
-        hdrs["svix-signature"] ??
-        hdrs["Webhook-Signature"] ??
-        "",
-    });
-    return (
-      typeof verified === "string" ? JSON.parse(verified) : verified
-    ) as PeyWebhookEvent;
+  if (!secret) {
+    console.warn(
+      "[pey webhook] PEY_WEBHOOK_SECRET vacío — aceptando evento sin verificar firma",
+    );
+    try {
+      return JSON.parse(rawBody || "{}") as PeyWebhookEvent;
+    } catch {
+      return { type: "unparseable", data: {} };
+    }
   }
-  return JSON.parse(rawBody) as PeyWebhookEvent;
+
+  const wh = new Webhook(secret);
+  const hdrs: Record<string, string> = {};
+  headers.forEach((v, k) => {
+    hdrs[k] = v;
+  });
+  const verified = wh.verify(rawBody, {
+    "webhook-id":
+      hdrs["webhook-id"] ?? hdrs["svix-id"] ?? hdrs["Webhook-Id"] ?? "",
+    "webhook-timestamp":
+      hdrs["webhook-timestamp"] ??
+      hdrs["svix-timestamp"] ??
+      hdrs["Webhook-Timestamp"] ??
+      "",
+    "webhook-signature":
+      hdrs["webhook-signature"] ??
+      hdrs["svix-signature"] ??
+      hdrs["Webhook-Signature"] ??
+      "",
+  });
+  return (
+    typeof verified === "string" ? JSON.parse(verified) : verified
+  ) as PeyWebhookEvent;
 }
